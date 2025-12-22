@@ -87,7 +87,7 @@ class GetFilter(nn.Module):
 
 class RGCNN_Seg(nn.Module):
     def __init__(self, vertice, F, K, M, regularization=0, dropout=0, batch_size=100, eval_frequency=200,
-                 dir_name=''):
+                 dir_name='', input_dim=6, cat_dim=0):
 
         # Verify the consistency w.r.t. the number of layers.
         assert len(F) == len(K)
@@ -125,22 +125,24 @@ class RGCNN_Seg(nn.Module):
         self.regularization, self.dropout = regularization, dropout
         self.batch_size, self.eval_frequency = batch_size, eval_frequency
         self.dir_name = dir_name
+        self.input_dim = input_dim
+        self.cat_dim = cat_dim
         self.regularizer = []
         for i in range(len(F)):
             if i == 0:
-                layer = GetFilter(Fin=6, K=K[i], Fout=F[i])
+                layer = GetFilter(Fin=self.input_dim + self.cat_dim, K=K[i], Fout=F[i])
             else:
                 layer = GetFilter(Fin=F[i - 1], K=K[i], Fout=F[i])
             setattr(self, 'gcn%d' % i, layer)
 
     def forward(self, x, cat):
+        self.regularizer = []
         L = self.getGraph(x)
         L = self.getLaplacian(L)
-        #         cat = torch.unsqueeze(cat,1)
-        #         cat = torch.zeros(self.batch_size, self.class_size).scatter_(1, cat, 1)
-        #         cat = torch.unsqueeze(cat,1)
-        #         cat = cat.expand(-1,self.vertice,-1).double()
-        #         x = torch.cat((x,cat),dim=2)
+        if self.cat_dim and cat is not None:
+            cat = F.one_hot(cat.to(torch.int64), num_classes=self.cat_dim).to(x.dtype)
+            cat = cat.unsqueeze(1).expand(-1, x.size(1), -1)
+            x = torch.cat((x, cat), dim=2)
         for i in range(len(self.F)):
             x = getattr(self, 'gcn%d' % i)(x, L)
             self.regularizer.append(x)
@@ -148,7 +150,7 @@ class RGCNN_Seg(nn.Module):
 
 class RGCNN_Cls(nn.Module):
     def __init__(self, vertice, F, K, M, regularization=0, dropout=0, batch_size=100, eval_frequency=200,
-                 dir_name=''):
+                 dir_name='', input_dim=6, cat_dim=0):
 
         # Verify the consistency w.r.t. the number of layers.
         assert len(F) == len(K)
@@ -186,12 +188,14 @@ class RGCNN_Cls(nn.Module):
         self.regularization, self.dropout = regularization, dropout
         self.batch_size, self.eval_frequency = batch_size, eval_frequency
         self.dir_name = dir_name
+        self.input_dim = input_dim
+        self.cat_dim = cat_dim
         self.pool = nn.MaxPool1d(vertice)
         self.relu = nn.ReLU()
         self.rloss = nn.MSELoss()
         for i in range(len(F)):
             if i == 0:
-                layer = GetFilter(Fin=6, K=K[i], Fout=F[i])
+                layer = GetFilter(Fin=self.input_dim + self.cat_dim, K=K[i], Fout=F[i])
             else:
                 layer = GetFilter(Fin=F[i - 1], K=K[i], Fout=F[i])
             setattr(self, 'gcn%d' % i, layer)
@@ -206,11 +210,10 @@ class RGCNN_Cls(nn.Module):
         losses = []
         L = self.getGraph(x)
         L = self.getLaplacian(L)
-        #         cat = torch.unsqueeze(cat,1)
-        #         cat = torch.zeros(self.batch_size, self.class_size).scatter_(1, cat, 1)
-        #         cat = torch.unsqueeze(cat,1)
-        #         cat = cat.expand(-1,self.vertice,-1).double()
-        #         x = torch.cat((x,cat),dim=2)
+        if self.cat_dim and cat is not None:
+            cat = F.one_hot(cat.to(torch.int64), num_classes=self.cat_dim).to(x.dtype)
+            cat = cat.unsqueeze(1).expand(-1, x.size(1), -1)
+            x = torch.cat((x, cat), dim=2)
         for i in range(len(self.F)):
             x = getattr(self, 'gcn%d' % i)(x, L)
             losses.append(self.rloss(x.detach(),torch.zeros_like(x)))
