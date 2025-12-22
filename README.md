@@ -1,6 +1,6 @@
 ## Regularized Graph CNN for Point Cloud Segmentation
 
-This code is a PyTorch implementation of our preprinted paper, [RGCNN: Regularized Graph CNN for Point Cloud Segmentation][arxiv], ACM MultiMedia, 2018.
+This code is a PyTorch implementation of [RGCNN: Regularized Graph CNN for Point Cloud Segmentation][arxiv], ACM MultiMedia, 2018.
 
 ## Installation
 
