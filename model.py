@@ -98,7 +98,7 @@ class RGCNN_Seg(nn.Module):
         # Print information about NN architecture.
         Ngconv = len(F)
         Nfc = len(M)
-        print('NN architecture')
+        print('[RGCNN] NN architecture')
         print('  input: M_0 = {}'.format(vertice))
         for i in range(Ngconv):
             print('  layer {0}: gconv{0}'.format(i + 1))
