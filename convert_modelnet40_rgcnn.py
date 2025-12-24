@@ -18,13 +18,22 @@ def resample_points(pts, num_points, rng):
     return pts[idx]
 
 
+def resample_points_batch(data, num_points, rng):
+    """Resample each point cloud independently (data shape: [B, P, C])."""
+    bsz, _, channels = data.shape
+    out = np.empty((bsz, num_points, channels), dtype=data.dtype)
+    for i in range(bsz):
+        out[i] = resample_points(data[i], num_points, rng)
+    return out
+
+
 def load_h5_split(files, num_points, rng):
     datas, labels = [], []
     for f in files:
         with h5py.File(f, "r") as h5:
-            data = h5["data"][:]  # [N, P, 6]
+            data = h5["data"][:]  # [B, P, 6]
             lab = h5["label"][:].reshape(-1).astype(np.int64)
-            data = resample_points(data, num_points, rng)
+            data = resample_points_batch(data, num_points, rng)
             datas.append(data)
             labels.append(lab)
     return np.concatenate(datas, axis=0), np.concatenate(labels, axis=0)
@@ -100,6 +109,13 @@ def main():
         print("Detected raw txt format; loading from class folders...")
         train_data, train_labels = load_txt_split(root, "train", args.num_points, rng)
         test_data, test_labels = load_txt_split(root, "test", args.num_points, rng)
+
+    print(
+        f"Loaded train split: {train_data.shape} (expected ~[9843, {args.num_points}, 6])"
+    )
+    print(
+        f"Loaded test split : {test_data.shape} (expected ~[2468, {args.num_points}, 6])"
+    )
 
     n = train_data.shape[0]
     n_val = int(round(n * args.val_ratio))
