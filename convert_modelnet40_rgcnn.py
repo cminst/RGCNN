@@ -40,6 +40,13 @@ def _infer_class_from_rel(rel, class_names):
     return max(matches, key=len)
 
 
+def _load_point_file(txt_path):
+    with open(txt_path, "r", encoding="utf-8") as f:
+        first_line = f.readline()
+    delimiter = "," if "," in first_line else None
+    return np.loadtxt(txt_path, delimiter=delimiter).astype(np.float32)
+
+
 def load_txt_split(root, split_name, num_points, rng):
     """Load ModelNet40 normals from the raw txt tree (class folders)."""
     shape_names = (pathlib.Path(root) / "modelnet40_shape_names.txt").read_text().strip().splitlines()
@@ -60,7 +67,7 @@ def load_txt_split(root, split_name, num_points, rng):
             txt_path = pathlib.Path(root) / cls / f"{rel}.txt"
         if not txt_path.exists():
             raise FileNotFoundError(f"Missing point cloud file: {txt_path}")
-        pts = np.loadtxt(txt_path).astype(np.float32)  # [P, 6] (xyz + normals)
+        pts = _load_point_file(txt_path)  # [P, 6] (xyz + normals)
         if pts.shape[1] < 6:
             raise ValueError(f"Expected 6 columns (xyz+normals) in {txt_path}, got {pts.shape[1]}")
         pts = resample_points(pts, num_points, rng)
