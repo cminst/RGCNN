@@ -60,18 +60,20 @@ class SegmentationDataset(Dataset):
 
 
 class ClassificationDataset(Dataset):
-    def __init__(self, data, labels):
+    def __init__(self, data, labels, num_points=None, resample=False):
         self.data = data
         self.labels = labels
+        self.num_points = num_points
+        self.resample = resample
 
     def __len__(self):
         return self.data.shape[0]
 
     def __getitem__(self, idx):
-        return (
-            torch.from_numpy(self.data[idx]).float(),
-            torch.tensor(self.labels[idx]).long(),
-        )
+        pts = self.data[idx]
+        if self.resample and self.num_points is not None:
+            pts = resample_points(pts, self.num_points, np.random)
+        return torch.from_numpy(pts).float(), torch.tensor(self.labels[idx]).long()
 
 
 def load_numpy_split(data_dir, split, limit=None):
@@ -209,14 +211,36 @@ def train_segmentation(args):
 def train_classification(args):
     train_data, train_labels = prepare_classification_data(args.data_dir, "train", limit=args.limit)
     val_data, val_labels = prepare_classification_data(args.data_dir, "val", limit=args.limit)
+    test_data, test_labels = prepare_classification_data(args.data_dir, "test", limit=args.limit)
     train_loader = DataLoader(
-        ClassificationDataset(train_data, train_labels),
+        ClassificationDataset(
+            train_data,
+            train_labels,
+            num_points=args.num_points,
+            resample=args.resample_input,
+        ),
         batch_size=args.batch_size,
         shuffle=True,
         drop_last=False,
     )
     val_loader = DataLoader(
-        ClassificationDataset(val_data, val_labels),
+        ClassificationDataset(
+            val_data,
+            val_labels,
+            num_points=args.num_points,
+            resample=args.resample_input,
+        ),
+        batch_size=args.batch_size,
+        shuffle=False,
+        drop_last=False,
+    )
+    test_loader = DataLoader(
+        ClassificationDataset(
+            test_data,
+            test_labels,
+            num_points=args.num_points,
+            resample=False,
+        ),
         batch_size=args.batch_size,
         shuffle=False,
         drop_last=False,
@@ -264,6 +288,8 @@ def train_classification(args):
                 epoch, args.epochs, train_loss, val_loss, val_acc, elapsed
             )
         )
+    test_loss, test_acc = evaluate_classification(model, test_loader, device, loss_fn, args.reg_weight)
+    print("final test_loss {:.4f} - test_acc {:.4f}".format(test_loss, test_acc))
 
 
 def parse_args():
@@ -281,6 +307,8 @@ def parse_args():
     parser.add_argument("--input-dim", type=int, default=6)
     parser.add_argument("--cat-dim", type=int, default=16)
     parser.add_argument("--reg-weight", type=float, default=0.0)
+    parser.add_argument("--resample-input", action="store_true",
+                        help="Randomly resample points on-the-fly to --num-points each epoch.")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--cpu", action="store_true")
     return parser.parse_args()
