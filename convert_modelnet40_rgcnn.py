@@ -30,6 +30,16 @@ def load_h5_split(files, num_points, rng):
     return np.concatenate(datas, axis=0), np.concatenate(labels, axis=0)
 
 
+def _infer_class_from_rel(rel, class_names):
+    if "/" in rel:
+        return rel.split("/")[0]
+    # Use longest prefix match to handle class names with underscores (e.g., night_stand).
+    matches = [c for c in class_names if rel.startswith(c + "_") or rel == c]
+    if not matches:
+        raise KeyError(rel)
+    return max(matches, key=len)
+
+
 def load_txt_split(root, split_name, num_points, rng):
     """Load ModelNet40 normals from the raw txt tree (class folders)."""
     shape_names = (pathlib.Path(root) / "modelnet40_shape_names.txt").read_text().strip().splitlines()
@@ -42,9 +52,12 @@ def load_txt_split(root, split_name, num_points, rng):
     files = [line.strip() for line in split_file.read_text().strip().splitlines() if line.strip()]
     datas, labels = [], []
     for rel in files:
-        cls = rel.split("/")[0]
+        cls = _infer_class_from_rel(rel, shape_names)
         label = class_to_idx[cls]
-        txt_path = pathlib.Path(root) / f"{rel}.txt"
+        if "/" in rel:
+            txt_path = pathlib.Path(root) / f"{rel}.txt"
+        else:
+            txt_path = pathlib.Path(root) / cls / f"{rel}.txt"
         if not txt_path.exists():
             raise FileNotFoundError(f"Missing point cloud file: {txt_path}")
         pts = np.loadtxt(txt_path).astype(np.float32)  # [P, 6] (xyz + normals)
