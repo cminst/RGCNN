@@ -29,6 +29,18 @@ SEG_CLASSES = {
 }
 
 
+def resample_points(pts, num_points, rng):
+    """Downsample (or upsample with replacement) a single point cloud."""
+    n = pts.shape[0]
+    if n == num_points:
+        return pts
+    if n > num_points:
+        idx = rng.choice(n, num_points, replace=False)
+    else:
+        idx = rng.choice(n, num_points, replace=True)
+    return pts[idx]
+
+
 def build_segmentation_categories(labels):
     seg = {}
     i = 0
